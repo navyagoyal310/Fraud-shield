@@ -23,10 +23,10 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 
 # -----------------------------------------------------------------------------
-# 1. PAGE CONFIGURATION & ANIMATED BACKGROUND CSS
+# 1. PAGE CONFIGURATION & V2.0 ULTRA-PREMIUM STYLES
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="FraudShield AI — Trust Before You Click",
+    page_title="FraudShield AI v2.0 — Cyber Threat Intelligence Engine",
     page_icon="👁️",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -35,24 +35,25 @@ st.set_page_config(
 def inject_cyber_theme():
     st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@600;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
     html, body, [class*="css"] {
         font-family: 'Inter', sans-serif;
-        background-color: #07090E;
-        color: #E2E8F0;
+        background-color: #0B0E14;
+        color: #F1F5F9;
     }
     
     .main .block-container {
         padding-top: 1.5rem;
         padding-bottom: 4rem;
-        max-width: 1280px;
+        max-width: 1380px;
     }
 
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
+    /* Background Gradient Grid */
     .bg-particles {
         position: fixed;
         top: 0;
@@ -61,28 +62,43 @@ def inject_cyber_theme():
         height: 100vh;
         z-index: -1;
         overflow: hidden;
-        background: radial-gradient(circle at 20% 20%, rgba(0, 242, 254, 0.05) 0%, transparent 40%),
-                    radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 40%),
-                    radial-gradient(circle at 50% 50%, rgba(11, 14, 20, 0.95) 0%, #07090E 100%);
+        background: 
+            radial-gradient(circle at 15% 20%, rgba(0, 242, 254, 0.07) 0%, transparent 45%),
+            radial-gradient(circle at 85% 80%, rgba(168, 85, 247, 0.07) 0%, transparent 45%),
+            radial-gradient(circle at 50% 50%, rgba(11, 14, 20, 0.98) 0%, #0B0E14 100%);
         pointer-events: none;
     }
 
+    /* Glassmorphism Cards */
     .glass-card {
-        background: rgba(15, 21, 33, 0.65);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(0, 242, 254, 0.12);
-        border-radius: 16px;
+        background: rgba(15, 22, 35, 0.65);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(0, 242, 254, 0.15);
+        border-radius: 18px;
         padding: 24px;
-        margin-bottom: 20px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+        margin-bottom: 22px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    .glass-card:hover {
+        border-color: rgba(0, 242, 254, 0.35);
+        box-shadow: 0 12px 40px rgba(0, 242, 254, 0.12);
+    }
+
+    /* Brand Header & Hero */
+    .brand-container {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 12px;
     }
 
     .brand-title {
         font-family: 'Orbitron', sans-serif;
         font-weight: 900;
-        font-size: 3rem;
+        font-size: 3.2rem;
         background: linear-gradient(135deg, #00F2FE 0%, #4FACFE 50%, #A855F7 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -90,51 +106,133 @@ def inject_cyber_theme():
         line-height: 1.1;
     }
     
-    .brand-tagline {
+    .hero-tagline {
         font-family: 'Space Grotesk', sans-serif;
-        font-size: 1.25rem;
-        color: #94A3B8;
-        letter-spacing: 1px;
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #00F2FE;
+        letter-spacing: 0.5px;
         margin-top: 4px;
     }
 
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-        background-color: rgba(15, 23, 42, 0.7);
-        padding: 8px 14px;
+    .hero-subtitle {
+        font-family: 'Inter', sans-serif;
+        font-size: 1.05rem;
+        color: #94A3B8;
+        max-width: 900px;
+        line-height: 1.6;
+        margin-bottom: 25px;
+    }
+
+    /* Stats Banner */
+    .stat-card {
+        background: rgba(20, 28, 45, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 14px;
+        padding: 16px;
+        text-align: center;
+        transition: transform 0.2s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(0, 242, 254, 0.3);
+    }
+    .stat-number {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #00F2FE;
+    }
+    .stat-label {
+        font-size: 0.85rem;
+        color: #94A3B8;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* Tabs Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 12px;
+        background-color: rgba(15, 23, 42, 0.8);
+        padding: 10px 16px;
+        border-radius: 16px;
         border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .stTabs [data-baseweb="tab"] {
         height: 48px;
-        white-space: pre;
         border-radius: 10px;
         color: #94A3B8;
         font-family: 'Space Grotesk', sans-serif;
         font-weight: 600;
         font-size: 0.95rem;
-        padding: 0px 18px;
+        padding: 0px 22px;
         border: none !important;
         background-color: transparent;
     }
 
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, rgba(0, 242, 254, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%) !important;
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.22) 0%, rgba(168, 85, 247, 0.22) 100%) !important;
         color: #00F2FE !important;
-        border: 1px solid rgba(0, 242, 254, 0.4) !important;
-        box-shadow: 0 0 20px rgba(0, 242, 254, 0.25);
+        border: 1px solid rgba(0, 242, 254, 0.45) !important;
+        box-shadow: 0 0 25px rgba(0, 242, 254, 0.25);
     }
 
     .stButton>button {
         background: linear-gradient(135deg, #00F2FE 0%, #4FACFE 100%);
-        color: #07090E;
+        color: #0B0E14;
         font-family: 'Space Grotesk', sans-serif;
         font-weight: 700;
+        font-size: 1rem;
         border: none;
-        border-radius: 10px;
-        padding: 12px 28px;
-        box-shadow: 0 4px 15px rgba(0, 242, 254, 0.3);
+        border-radius: 12px;
+        padding: 14px 32px;
+        box-shadow: 0 4px 20px rgba(0, 242, 254, 0.35);
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 28px rgba(0, 242, 254, 0.5);
+    }
+
+    /* Decision Timeline Visual */
+    .timeline-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        margin: 20px 0;
+        flex-wrap: wrap;
+    }
+    .timeline-step {
+        background: rgba(20, 28, 45, 0.8);
+        border: 1px solid rgba(0, 242, 254, 0.2);
+        border-radius: 12px;
+        padding: 12px 16px;
+        flex: 1;
+        min-width: 140px;
+        text-align: center;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #E2E8F0;
+    }
+    .timeline-arrow {
+        color: #A855F7;
+        font-weight: bold;
+        font-size: 1.2rem;
+    }
+
+    /* System Status Badges */
+    .status-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        background: rgba(16, 185, 129, 0.15);
+        color: #10B981;
+        border: 1px solid rgba(10, 185, 129, 0.3);
     }
     </style>
     <div class="bg-particles"></div>
@@ -217,7 +315,7 @@ def extract_features(raw_url: str) -> dict:
 # -----------------------------------------------------------------------------
 MODEL_FILE = "fraudshield_rf_model.joblib"
 
-def generate_synthetic_dataset(n_samples: int = 2000) -> pd.DataFrame:
+def generate_synthetic_dataset(n_samples: int = 2500) -> pd.DataFrame:
     np.random.seed(42)
     data = []
     for _ in range(n_samples // 2):
@@ -263,6 +361,44 @@ def classify_threat_category(url: str, features: dict, fraud_prob: float) -> str
     else:
         return "Phishing Website"
 
+def generate_contextual_recommendations(category: str, features: dict) -> tuple[list, list]:
+    reasons = []
+    recs = []
+
+    if features['has_https'] == 0:
+        reasons.append("Unencrypted connection (HTTP protocol detected).")
+        recs.append("Never enter passwords, credit cards, or personal details on HTTP sites.")
+    if features['is_ip'] == 1:
+        reasons.append("Domain points directly to a raw IP address.")
+        recs.append("Avoid accessing raw IP addresses unless verifying internal network devices.")
+    if features['url_length'] > 65:
+        reasons.append(f"Excessively long URL structure ({features['url_length']} characters).")
+        recs.append("Inspect the core domain carefully in the browser address bar.")
+    if features['suspicious_keywords_count'] > 0:
+        reasons.append(f"Contains {features['suspicious_keywords_count']} high-risk lure keywords.")
+
+    if category == "Credential Theft / Phishing":
+        recs.append("Verify the domain on official bookmarks before logging in.")
+        recs.append("Enable Multi-Factor Authentication (MFA) on your account immediately.")
+    elif category == "Crypto Scam":
+        recs.append("Never connect Web3 wallets or sign approval transactions on unverified links.")
+        recs.append("Verify crypto giveaway claims on official verified social media channels.")
+    elif category == "Fake Shopping Website":
+        recs.append("Check domain registration age and look for missing merchant contact info.")
+        recs.append("Use secure credit card payment methods with fraud protection.")
+    elif category == "Malware / Exploit Website":
+        recs.append("Do not download any files or accept pop-up prompt installations.")
+        recs.append("Run a full antivirus scan if you accessed this website.")
+    else:
+        if not recs:
+            recs.append("Standard domain metrics detected with no structural anomalies.")
+            recs.append("Practice normal online caution.")
+
+    if not reasons:
+        reasons.append("Structural URL parameters fall within safe statistical boundaries.")
+
+    return reasons, recs
+
 def compute_shap_explanations(feat_df: pd.DataFrame) -> pd.DataFrame:
     try:
         explainer = get_shap_explainer(model)
@@ -278,175 +414,87 @@ def analyze_single_url(url: str) -> dict:
     fraud_prob = float(model.predict_proba(feat_df)[0][1])
     trust_score = max(0, min(100, int((1.0 - fraud_prob) * 100)))
     
+    confidence_score = round(max(fraud_prob, 1.0 - fraud_prob) * 100, 1)
     threat_level = "Safe" if fraud_prob < 0.20 else ("Low Risk" if fraud_prob < 0.40 else ("Medium Risk" if fraud_prob < 0.65 else ("High Risk" if fraud_prob < 0.85 else "Critical Risk")))
     threat_category = classify_threat_category(url, feats, fraud_prob)
     shap_df = compute_shap_explanations(feat_df)
     
-    reasons, recs = [], []
-    if feats['has_https'] == 0:
-        reasons.append("Missing HTTPS protocol — communication with this site is unencrypted.")
-        recs.append("Never enter passwords or financial information on HTTP sites.")
-    if feats['is_ip'] == 1:
-        reasons.append("Raw IP address used instead of a domain name.")
-        recs.append("Avoid accessing websites hosted directly on IP addresses.")
-    if feats['url_length'] > 60:
-        reasons.append(f"Excessively long URL ({feats['url_length']} chars) attempting to mask destination.")
-        recs.append("Inspect the root domain carefully in your address bar.")
-    if feats['suspicious_keywords_count'] > 0:
-        reasons.append(f"Detected {feats['suspicious_keywords_count']} high-risk scam keywords.")
-        recs.append("Do not click unexpected links offering rewards or urgent resets.")
-
-    if not reasons:
-        reasons.append("Standard domain metrics detected with no structural anomalies.")
-        recs.append("Website exhibits standard behavioral markers. Normal online caution applies.")
+    reasons, recs = generate_contextual_recommendations(threat_category, feats)
 
     return {
         'url': url, 'fraud_probability': fraud_prob, 'trust_score': trust_score,
-        'threat_level': threat_level, 'threat_category': threat_category,
-        'features': feats, 'shap_importance': shap_df, 'reasons': reasons, 'recommendations': recs
+        'confidence_score': confidence_score, 'threat_level': threat_level, 
+        'threat_category': threat_category, 'features': feats, 
+        'shap_importance': shap_df, 'reasons': reasons, 'recommendations': recs
     }
 
+# -----------------------------------------------------------------------------
+# 4. PLOTLY GAUGES & VISUALIZATIONS
+# -----------------------------------------------------------------------------
+def create_score_gauge(score: float, title: str, is_trust: bool = True) -> go.Figure:
+    color = "#10B981" if (score >= 70 if is_trust else score < 30) else ("#F59E0B" if (score >= 40 if is_trust else score < 60) else "#EF4444")
+    
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        number={'suffix': "%" if not is_trust else "/100", 'font': {'color': color, 'size': 28, 'family': 'Orbitron'}},
+        title={'text': title, 'font': {'size': 14, 'color': '#94A3B8', 'family': 'Space Grotesk'}},
+        gauge={
+            'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "#334155"},
+            'bar': {'color': color},
+            'bgcolor': "rgba(15, 23, 42, 0.5)",
+            'borderwidth': 1,
+            'bordercolor': "rgba(255, 255, 255, 0.1)",
+            'steps': [
+                {'range': [0, 40], 'color': 'rgba(239, 68, 68, 0.15)'},
+                {'range': [40, 70], 'color': 'rgba(245, 158, 11, 0.15)'},
+                {'range': [70, 100], 'color': 'rgba(16, 185, 129, 0.15)'}
+            ],
+        }
+    ))
+    fig.update_layout(height=170, margin=dict(l=10, r=10, t=30, b=10), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    return fig
+
+# -----------------------------------------------------------------------------
+# 5. ENTERPRISE PDF REPORT GENERATOR
+# -----------------------------------------------------------------------------
 def generate_pdf_report(analysis: dict) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     styles = getSampleStyleSheet()
     
-    title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=20, textColor=colors.HexColor('#0F172A'), spaceAfter=4)
+    title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=22, textColor=colors.HexColor('#0B0E14'), spaceAfter=4)
     subtitle_style = ParagraphStyle('DocSubtitle', parent=styles['Normal'], fontName='Helvetica', fontSize=10, textColor=colors.HexColor('#64748B'), spaceAfter=15)
-    section_heading = ParagraphStyle('SectionHeading', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=12, textColor=colors.HexColor('#0284C7'), spaceBefore=10, spaceAfter=6)
-    body_style = ParagraphStyle('BodyTextCustom', parent=styles['Normal'], fontName='Helvetica', fontSize=9, leading=13, textColor=colors.HexColor('#334155'))
+    section_heading = ParagraphStyle('SectionHeading', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=13, textColor=colors.HexColor('#00F2FE'), spaceBefore=12, spaceAfter=8)
+    body_style = ParagraphStyle('BodyTextCustom', parent=styles['Normal'], fontName='Helvetica', fontSize=9, leading=14, textColor=colors.HexColor('#334155'))
 
     story = [
-        Paragraph("FraudShield AI — Security Audit Report", title_style),
-        Paragraph(f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')} | Target: {analysis['url']}", subtitle_style),
-        HRFlowable(width="100%", thickness=1, color=colors.HexColor('#E2E8F0'), spaceAfter=15),
-        Paragraph("Executive Threat Summary", section_heading)
+        Paragraph("FraudShield AI — Cyber Threat Audit Report", title_style),
+        Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')} | Target: {analysis['url']}", subtitle_style),
+        HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#00F2FE'), spaceAfter=15),
+        Paragraph("Executive Threat Intelligence Summary", section_heading)
     ]
 
     summary_data = [
-        ["Target URL", analysis['url']],
-        ["Threat Level", analysis['threat_level']],
-        ["Trust Score", f"{analysis['trust_score']} / 100"],
+        ["Target Domain / URL", analysis['url']],
+        ["Overall Threat Level", analysis['threat_level']],
+        ["Trust Score Index", f"{analysis['trust_score']} / 100"],
         ["Fraud Probability", f"{round(analysis['fraud_probability'] * 100, 1)}%"],
-        ["Threat Category", analysis['threat_category']]
+        ["Model Confidence Score", f"{analysis['confidence_score']}%"],
+        ["Assigned Threat Category", analysis['threat_category']]
     ]
     
-    t = Table(summary_data, colWidths=[140, 380])
+    t = Table(summary_data, colWidths=[150, 370])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#1E293B')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#0F172A')),
         ('PADDING', (0, 0), (-1, -1), 6)
     ]))
     story.append(t)
     story.append(Spacer(1, 15))
 
-    story.append(Paragraph("Risk Indicators & Recommendations", section_heading))
+    story.append(Paragraph("Risk Indicators & Contextual Action Items", section_heading))
     for reason in analysis['reasons']:
-        story.append(Paragraph(f"• <b>Risk Factor:</b> {reason}", body_style))
-    for rec in analysis['recommendations']:
-        story.append(Paragraph(f"• <b>Action:</b> {rec}", body_style))
-
-    doc.build(story)
-    return buffer.getvalue()
-
-# -----------------------------------------------------------------------------
-# 4. USER INTERFACE LAYOUT
-# -----------------------------------------------------------------------------
-col_logo, col_title = st.columns([1, 6])
-with col_logo:
-    st.image("https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=200&auto=format&fit=crop&q=60", width=85)
-with col_title:
-    st.markdown('<div class="brand-title">FraudShield AI</div>', unsafe_allow_html=True)
-    st.markdown('<div class="brand-tagline">Trust Before You Click — Cyber Threat Intelligence Engine</div>', unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-tabs = st.tabs(["🔍 URL Inspector", "📁 Batch Analysis", "⚙️ Model Intelligence"])
-
-with tabs[0]:
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    target_url = st.text_input("Enter URL to analyze:", placeholder="e.g., http://secure-login-paypal-verify.com/login")
-    scan_btn = st.button("Analyze Link Security")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    if scan_btn and target_url:
-        with st.spinner("Executing lexical extraction & ML classification..."):
-            is_valid, norm_url, err_msg = normalize_and_validate_url(target_url)
-            if not is_valid:
-                st.error(f"Validation Error: {err_msg}")
-            else:
-                res = analyze_single_url(norm_url)
-                
-                m1, m2, m3, m4 = st.columns(4)
-                with m1:
-                    st.metric("Trust Score", f"{res['trust_score']} / 100")
-                with m2:
-                    st.metric("Threat Level", res['threat_level'])
-                with m3:
-                    st.metric("Fraud Probability", f"{round(res['fraud_probability'] * 100, 1)}%")
-                with m4:
-                    st.metric("Category", res['threat_category'])
-
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                c_left, c_right = st.columns([1, 1])
-                with c_left:
-                    st.subheader("Key Risk Indicators")
-                    for r in res['reasons']:
-                        st.write(f"⚠️ {r}")
-                    st.subheader("Recommended Actions")
-                    for rec in res['recommendations']:
-                        st.write(f"🛡️ {rec}")
-
-                with c_right:
-                    st.subheader("SHAP Feature Impact Breakdown")
-                    fig = px.bar(
-                        res['shap_importance'].head(7), 
-                        x='SHAP_Impact', 
-                        y='Feature', 
-                        orientation='h',
-                        color='SHAP_Impact',
-                        color_continuous_scale='Reds'
-                    )
-                    fig.update_layout(template="plotly_dark", height=280)
-                    st.plotly_chart(fig, use_container_width=True)
-
-                pdf_bytes = generate_pdf_report(res)
-                st.download_button(
-                    label="📄 Download Full PDF Security Audit",
-                    data=pdf_bytes,
-                    file_name=f"FraudShield_Audit_{datetime.now().strftime('%Y%m%d')}.pdf",
-                    mime="application/pdf"
-                )
-
-with tabs[1]:
-    st.subheader("Batch URL Threat Scanner")
-    uploaded_file = st.file_uploader("Upload CSV containing 'url' column:", type=['csv'])
-    if uploaded_file:
-        batch_df = pd.read_csv(uploaded_file)
-        if 'url' in batch_df.columns:
-            if st.button("Process Batch URLs"):
-                results = []
-                for u in batch_df['url']:
-                    val, n_u, _ = normalize_and_validate_url(str(u))
-                    if val:
-                        r = analyze_single_url(n_u)
-                        results.append({'URL': u, 'Trust Score': r['trust_score'], 'Threat Level': r['threat_level'], 'Fraud Prob': r['fraud_probability']})
-                res_df = pd.DataFrame(results)
-                st.dataframe(res_df, use_container_width=True)
-                st.download_button("📥 Export Results as CSV", res_df.to_csv(index=False), "fraudshield_batch_results.csv", "text/csv")
-        else:
-            st.error("Uploaded CSV must contain a 'url' column.")
-
-with tabs[2]:
-    st.subheader("Random Forest Model Architecture")
-    st.json({
-        "Model Type": "RandomForestClassifier",
-        "Estimators": 100,
-        "Max Depth": 10,
-        "Features Extracted": len(FEATURE_NAMES),
-        "Class Balance Weighting": "Balanced"
-    })
-    
+        story.append(Paragraph(f"• <b>Identified Risk Factor:</b>
