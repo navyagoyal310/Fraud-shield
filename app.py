@@ -259,7 +259,7 @@ def normalize_and_validate_url(url_str: str) -> tuple[bool, str, str]:
             return False, clean_url, "Invalid URL structural format."
         return True, clean_url, "Valid URL"
     except Exception as e:
-        return False, clean_url, "Malformed URL: " + str(e)
+        return False, clean_url, f"Malformed URL: {str(e)}"
 
 FEATURE_NAMES = [
     'url_length', 'domain_length', 'num_dots', 'num_hyphens', 'num_underline',
@@ -434,17 +434,33 @@ def analyze_single_url(url: str) -> dict:
     trust_score = max(0, min(100, int((1.0 - fraud_prob) * 100)))
     confidence_score = round(max(fraud_prob, 1.0 - fraud_prob) * 100, 1)
     
-    threat_level = "Safe" if fraud_prob < 0.20 else ("Low Risk" if fraud_prob < 0.40 else ("Medium Risk" if fraud_prob < 0.65 else ("High Risk" if fraud_prob < 0.85 else "Critical Risk")))
+    if fraud_prob < 0.20:
+        threat_level = "Safe"
+    elif fraud_prob < 0.40:
+        threat_level = "Low Risk"
+    elif fraud_prob < 0.65:
+        threat_level = "Medium Risk"
+    elif fraud_prob < 0.85:
+        threat_level = "High Risk"
+    else:
+        threat_level = "Critical Risk"
+
     threat_category = classify_threat_category(url, feats, fraud_prob)
     importance_df = compute_feature_importance_explanations(feat_df)
     risk_factors, safe_indicators, recs = generate_category_recommendations(threat_category, feats)
 
     return {
-        'url': url, 'fraud_probability': fraud_prob, 'trust_score': trust_score,
-        'confidence_score': confidence_score, 'threat_level': threat_level, 
-        'threat_category': threat_category, 'features': feats, 
-        'feature_importance': importance_df, 'risk_factors': risk_factors, 
-        'safe_indicators': safe_indicators, 'recommendations': recs
+        'url': url,
+        'fraud_probability': fraud_prob,
+        'trust_score': trust_score,
+        'confidence_score': confidence_score,
+        'threat_level': threat_level, 
+        'threat_category': threat_category,
+        'features': feats, 
+        'feature_importance': importance_df,
+        'risk_factors': risk_factors, 
+        'safe_indicators': safe_indicators,
+        'recommendations': recs
     }
 
 # -----------------------------------------------------------------------------
@@ -514,10 +530,4 @@ def generate_pdf_report(analysis: dict) -> bytes:
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
         ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#0F172A')),
-        ('PADDING', (0, 0), (-1, -1), 6)
-    ]))
-    
-    story.append(t)
-    story.append(Spacer(1, 12))
-
-    story.append(Paragraph("Category-Specific Rem
+ 
