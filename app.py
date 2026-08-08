@@ -522,4 +522,23 @@ def generate_pdf_report(analysis: dict) -> bytes:
         ["Threat Category", str(analysis['threat_category'])]
     ]
     
-    t = Table(summary_data, colWidths=[
+    # Table initialization with explicit closed brackets
+    t = Table(summary_data, colWidths=[150, 370])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#0F172A')),
+        ('PADDING', (0, 0), (-1, -1), 6)
+    ]))
+    
+    story.append(t)
+    story.append(Spacer(1, 12))
+
+    story.append(Paragraph("Category-Specific Remediation Guidance", section_heading))
+    for rec in analysis['recommendations']:
+        story.append(Paragraph(f"• <b>Action Required:</b> {rec}", body_style))
+
+    doc.build(story)
+    return buffer.getvalue()
+    
