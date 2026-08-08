@@ -22,7 +22,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 
 # -----------------------------------------------------------------------------
-# 1. PAGE CONFIG & ANIMATED SAAS STYLES
+# 1. PAGE CONFIG & STYLES
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="FraudShield AI — Cyber Threat Intelligence",
@@ -50,7 +50,6 @@ def inject_cyber_styles():
 
     #MainMenu, footer, header {visibility: hidden;}
 
-    /* Background Styling */
     .cyber-bg {
         position: fixed;
         top: 0; left: 0;
@@ -77,7 +76,6 @@ def inject_cyber_styles():
         100% { transform: translate(-40px, -40px); }
     }
 
-    /* Glass Cards */
     .glass-card {
         background: rgba(15, 23, 42, 0.65);
         backdrop-filter: blur(20px);
@@ -89,13 +87,7 @@ def inject_cyber_styles():
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         transition: all 0.3s ease;
     }
-    
-    .glass-card:hover {
-        border-color: rgba(168, 85, 247, 0.4);
-        transform: translateY(-2px);
-    }
 
-    /* Header & Branding */
     .brand-container {
         display: flex;
         align-items: center;
@@ -121,7 +113,6 @@ def inject_cyber_styles():
         margin-bottom: 20px;
     }
 
-    /* Status Bar */
     .status-card {
         background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.8));
         border: 1px solid rgba(56, 189, 248, 0.25);
@@ -152,7 +143,6 @@ def inject_cyber_styles():
         box-shadow: 0 0 10px #10B981;
     }
 
-    /* Scoreboard HUD */
     .hud-card {
         background: rgba(15, 23, 42, 0.7);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -160,12 +150,14 @@ def inject_cyber_styles():
         padding: 16px;
         text-align: center;
     }
+
     .hud-val {
         font-family: 'Syne', sans-serif;
         font-size: 1.8rem;
         font-weight: 800;
         color: #38BDF8;
     }
+
     .hud-lbl {
         font-size: 0.75rem;
         color: #9CA3AF;
@@ -173,7 +165,6 @@ def inject_cyber_styles():
         letter-spacing: 1px;
     }
 
-    /* Timeline Stepper */
     .timeline-container {
         display: flex;
         justify-content: space-between;
@@ -203,7 +194,6 @@ def inject_cyber_styles():
 
     .step-text { font-size: 0.75rem; color: #CBD5E1; font-weight: 600; }
 
-    /* Streamlit Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
         background-color: rgba(15, 23, 42, 0.8);
@@ -229,7 +219,6 @@ def inject_cyber_styles():
         border: 1px solid rgba(56, 189, 248, 0.4) !important;
     }
 
-    /* Buttons */
     .stButton>button {
         background: linear-gradient(135deg, #06B6D4 0%, #38BDF8 50%, #A855F7 100%);
         color: #030712;
@@ -254,7 +243,7 @@ def inject_cyber_styles():
 inject_cyber_styles()
 
 # -----------------------------------------------------------------------------
-# 2. FEATURE EXTRACTION & NORMALIZATION ENGINE
+# 2. FEATURE EXTRACTION
 # -----------------------------------------------------------------------------
 def normalize_and_validate_url(url_str: str) -> tuple[bool, str, str]:
     if not url_str or not isinstance(url_str, str):
@@ -333,14 +322,12 @@ def generate_large_synthetic_dataset(n_samples: int = 10000) -> pd.DataFrame:
     data = []
     half = n_samples // 2
     
-    # Safe vectors
     for _ in range(half):
         data.append([
             int(np.random.normal(28, 6)), int(np.random.normal(12, 3)), 1, 0, 0, 2, 
             int(np.random.poisson(1)), 20, 1, 0, 0, 0, 0, 
             float(np.random.normal(3.7, 0.3)), 0, 0, 0
         ])
-    # Fraud vectors
     for _ in range(half):
         data.append([
             int(np.random.normal(82, 18)), int(np.random.normal(28, 7)), 3, 2, 1, 5, 
@@ -428,7 +415,6 @@ def generate_category_recommendations(category: str, features: dict) -> tuple[li
     return risk_factors, safe_indicators, recs
 
 def compute_feature_importance_explanations(feat_df: pd.DataFrame) -> pd.DataFrame:
-    # Reliable Tree-Based Feature Importance Ranking
     importances = model.feature_importances_
     values = feat_df.iloc[0].values
     weighted_scores = importances * (values + 1.0)
@@ -462,7 +448,7 @@ def analyze_single_url(url: str) -> dict:
     }
 
 # -----------------------------------------------------------------------------
-# 4. PLOTLY GAUGES & PDF AUDIT REPORTS
+# 4. REPORTLAB PDF & GAUGES
 # -----------------------------------------------------------------------------
 def create_circular_trust_gauge(score: float, title: str, is_trust: bool = True) -> go.Figure:
     if is_trust:
@@ -522,7 +508,6 @@ def generate_pdf_report(analysis: dict) -> bytes:
         ["Threat Category", str(analysis['threat_category'])]
     ]
     
-    # Table initialization with explicit closed brackets
     t = Table(summary_data, colWidths=[150, 370])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FAFC')),
@@ -535,10 +520,4 @@ def generate_pdf_report(analysis: dict) -> bytes:
     story.append(t)
     story.append(Spacer(1, 12))
 
-    story.append(Paragraph("Category-Specific Remediation Guidance", section_heading))
-    for rec in analysis['recommendations']:
-        story.append(Paragraph(f"• <b>Action Required:</b> {rec}", body_style))
-
-    doc.build(story)
-    return buffer.getvalue()
-    
+    story.append(Paragraph("Category-Specific Rem
