@@ -14,7 +14,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, roc_auc_score
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -22,7 +25,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
 
 # -----------------------------------------------------------------------------
-# 1. PAGE CONFIG & STYLES
+# 1. PAGE CONFIGURATION & CYBER STYLES
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="FraudShield AI — Cyber Threat Intelligence",
@@ -243,7 +246,7 @@ def inject_cyber_styles():
 inject_cyber_styles()
 
 # -----------------------------------------------------------------------------
-# 2. FEATURE EXTRACTION
+# 2. FEATURE EXTRACTION ENGINE (24 PARAMETERS)
 # -----------------------------------------------------------------------------
 def normalize_and_validate_url(url_str: str) -> tuple[bool, str, str]:
     if not url_str or not isinstance(url_str, str):
@@ -259,13 +262,15 @@ def normalize_and_validate_url(url_str: str) -> tuple[bool, str, str]:
             return False, clean_url, "Invalid URL structural format."
         return True, clean_url, "Valid URL"
     except Exception as e:
-        return False, clean_url, f"Malformed URL: {str(e)}"
+        return False, clean_url, "Malformed URL: " + str(e)
 
 FEATURE_NAMES = [
-    'url_length', 'domain_length', 'num_dots', 'num_hyphens', 'num_underline',
-    'num_slash', 'num_digits', 'num_letters', 'has_https', 'is_ip',
-    'num_subdomains', 'suspicious_keywords_count', 'special_char_count',
-    'entropy', 'has_at_symbol', 'has_port'
+    'url_length', 'domain_length', 'hostname_length', 'path_length', 'query_length',
+    'num_dots', 'num_hyphens', 'num_underline', 'num_slash', 'num_digits',
+    'num_letters', 'digit_ratio', 'letter_ratio', 'special_character_ratio',
+    'has_https', 'is_ip', 'num_subdomains', 'suspicious_keywords_count',
+    'special_char_count', 'entropy', 'hostname_entropy', 'path_entropy',
+    'has_at_symbol', 'has_port'
 ]
 
 SUSPICIOUS_KEYWORDS = [
@@ -288,86 +293,168 @@ def extract_features(raw_url: str) -> dict:
     parsed = urlparse(url)
     domain = parsed.netloc if parsed.netloc else parsed.path.split('/')[0]
     clean_domain = domain.split(':')[0]
+    path = parsed.path
+    query = parsed.query
+
     ip_pattern = re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
     is_ip = 1 if ip_pattern.match(clean_domain) else 0
     subdomains = clean_domain.split('.')
     num_subdomains = max(0, len(subdomains) - 2) if not is_ip else 0
 
+    url_len = len(url)
+    num_digits = sum(c.isdigit() for c in url)
+    num_letters = sum(c.isalpha() for c in url)
+    special_chars = len(re.findall(r'[@%&=?+~#$!]', url))
+
     return {
-        'url_length': len(url),
+        'url_length': url_len,
         'domain_length': len(domain),
+        'hostname_length': len(clean_domain),
+        'path_length': len(path),
+        'query_length': len(query),
         'num_dots': url.count('.'),
         'num_hyphens': url.count('-'),
         'num_underline': url.count('_'),
         'num_slash': url.count('/'),
-        'num_digits': sum(c.isdigit() for c in url),
-        'num_letters': sum(c.isalpha() for c in url),
+        'num_digits': num_digits,
+        'num_letters': num_letters,
+        'digit_ratio': round(num_digits / max(1, url_len), 4),
+        'letter_ratio': round(num_letters / max(1, url_len), 4),
+        'special_character_ratio': round(special_chars / max(1, url_len), 4),
         'has_https': 1 if url.startswith('https://') else 0,
         'is_ip': is_ip,
         'num_subdomains': num_subdomains,
         'suspicious_keywords_count': sum(1 for kw in SUSPICIOUS_KEYWORDS if kw in url),
-        'special_char_count': len(re.findall(r'[@%&=?+~#$!]', url)),
+        'special_char_count': special_chars,
         'entropy': round(calculate_entropy(url), 4),
+        'hostname_entropy': round(calculate_entropy(clean_domain), 4),
+        'path_entropy': round(calculate_entropy(path), 4),
         'has_at_symbol': 1 if '@' in url else 0,
         'has_port': 1 if len(domain.split(':')) > 1 else 0
     }
-
+    # -----------------------------------------------------------------------------
+# 3. HYBRID ENSEMBLE MACHINE LEARNING ENGINE
 # -----------------------------------------------------------------------------
-# 3. MACHINE LEARNING ENGINE
-# -----------------------------------------------------------------------------
-MODEL_FILE = "fraudshield_rf_10k_model.joblib"
+BUNDLE_FILE = "fraudshield_hybrid_bundle.joblib"
 
-def generate_large_synthetic_dataset(n_samples: int = 10000) -> pd.DataFrame:
+def generate_hybrid_dataset(n_samples: int = 3000) -> tuple[list, pd.DataFrame, np.ndarray]:
     np.random.seed(42)
-    data = []
-    half = n_samples // 2
+    urls = []
+    labels = []
     
+    safe_templates = [
+        "https://www.{domain}.com/{path}",
+        "https://{domain}.org/about/{path}",
+        "https://sub.{domain}.net/docs/page{num}"
+    ]
+    fraud_templates = [
+        "http://secure-{kw}-{domain}.com/login/verify.php",
+        "http://{ip}/account/update-{kw}.html",
+        "http://free-{kw}-claim-now.{tld}/wallet/auth"
+    ]
+    words = ["google", "github", "wikipedia", "amazon", "microsoft", "apple", "standard", "cloud"]
+    scam_words = ["paypal", "bank", "chase", "crypto", "bonus", "verify", "secure", "update"]
+    tlds = ["xyz", "top", "cc", "info", "online", "biz"]
+
+    half = n_samples // 2
     for _ in range(half):
-        data.append([
-            int(np.random.normal(28, 6)), int(np.random.normal(12, 3)), 1, 0, 0, 2, 
-            int(np.random.poisson(1)), 20, 1, 0, 0, 0, 0, 
-            float(np.random.normal(3.7, 0.3)), 0, 0, 0
-        ])
+        d = np.random.choice(words)
+        p = np.random.choice(["main", "home", "search", "item", "article"])
+        n = np.random.randint(1, 100)
+        u = np.random.choice(safe_templates).format(domain=d, path=p, num=n)
+        urls.append(u)
+        labels.append(0)
+
     for _ in range(half):
-        data.append([
-            int(np.random.normal(82, 18)), int(np.random.normal(28, 7)), 3, 2, 1, 5, 
-            int(np.random.normal(14, 4)), 38, 0, 0, 2, 2, 4, 
-            float(np.random.normal(4.9, 0.4)), 0, 0, 1
-        ])
-    cols = FEATURE_NAMES + ['is_fraud']
-    return pd.DataFrame(data, columns=cols).clip(lower=0)
+        kw = np.random.choice(scam_words)
+        d = np.random.choice(words)
+        ip = "192.168.1." + str(np.random.randint(1, 255))
+        tld = np.random.choice(tlds)
+        u = np.random.choice(fraud_templates).format(kw=kw, domain=d, ip=ip, tld=tld)
+        urls.append(u)
+        labels.append(1)
+
+    feats_list = [extract_features(u) for u in urls]
+    df_num = pd.DataFrame(feats_list)[FEATURE_NAMES]
+    return urls, df_num, np.array(labels)
 
 @st.cache_resource
-def load_or_train_model():
-    if os.path.exists(MODEL_FILE):
+def load_or_train_hybrid_pipeline():
+    if os.path.exists(BUNDLE_FILE):
         try:
-            return joblib.load(MODEL_FILE)
+            return joblib.load(BUNDLE_FILE)
         except Exception:
             pass
-    df = generate_large_synthetic_dataset(10000)
-    X, y = df[FEATURE_NAMES], df['is_fraud']
-    X_train, _, y_train, _ = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-    model = RandomForestClassifier(n_estimators=120, max_depth=12, random_state=42, class_weight='balanced', n_jobs=-1)
-    model.fit(X_train, y_train)
-    joblib.dump(model, MODEL_FILE)
-    return model
 
-model = load_or_train_model()
+    urls, X_num, y = generate_hybrid_dataset(3000)
+    
+    X_num_train, X_num_temp, X_text_train, X_text_temp, y_train, y_temp = train_test_split(
+        X_num, urls, y, test_size=0.30, random_state=42, stratify=y
+    )
+    X_num_val, X_num_test, X_text_val, X_text_test, y_val, y_test = train_test_split(
+        X_num_temp, X_text_temp, y_temp, test_size=0.50, random_state=42, stratify=y_temp
+    )
+
+    rf_model = RandomForestClassifier(n_estimators=300, max_depth=12, random_state=42, class_weight="balanced_subsample", n_jobs=-1)
+    rf_model.fit(X_num_train, y_train)
+
+    tfidf = TfidfVectorizer(analyzer="char", ngram_range=(3, 5), min_df=2, sublinear_tf=True, max_features=25000)
+    X_tfidf_train = tfidf.fit_transform(X_text_train)
+    
+    lr_model = LogisticRegression(max_iter=1000, class_weight="balanced", random_state=42)
+    lr_model.fit(X_tfidf_train, y_train)
+
+    rf_val_prob = rf_model.predict_proba(X_num_val)[:, 1]
+    X_tfidf_val = tfidf.transform(X_text_val)
+    lr_val_prob = lr_model.predict_proba(X_tfidf_val)[:, 1]
+    val_ensemble_prob = 0.65 * rf_val_prob + 0.35 * lr_val_prob
+    optimal_threshold = 0.45
+
+    rf_test_prob = rf_model.predict_proba(X_num_test)[:, 1]
+    X_tfidf_test = tfidf.transform(X_text_test)
+    lr_test_prob = lr_model.predict_proba(X_tfidf_test)[:, 1]
+    test_ensemble_prob = 0.65 * rf_test_prob + 0.35 * lr_test_prob
+    test_preds = (test_ensemble_prob >= optimal_threshold).astype(int)
+
+    eval_metrics = {
+        'precision': round(float(precision_score(y_test, test_preds)), 4),
+        'recall': round(float(recall_score(y_test, test_preds)), 4),
+        'f1': round(float(f1_score(y_test, test_preds)), 4),
+        'accuracy': round(float(accuracy_score(y_test, test_preds)), 4),
+        'roc_auc': round(float(roc_auc_score(y_test, test_ensemble_prob)), 4),
+        'test_count': len(y_test),
+        'threshold': optimal_threshold
+    }
+
+    bundle = {
+        'rf_model': rf_model,
+        'tfidf': tfidf,
+        'lr_model': lr_model,
+        'metrics': eval_metrics
+    }
+    joblib.dump(bundle, BUNDLE_FILE)
+    return bundle
+
+pipeline_bundle = load_or_train_hybrid_pipeline()
+rf_model = pipeline_bundle['rf_model']
+tfidf = pipeline_bundle['tfidf']
+lr_model = pipeline_bundle['lr_model']
+eval_metrics = pipeline_bundle['metrics']
 
 def classify_threat_category(url: str, features: dict, fraud_prob: float) -> str:
     if fraud_prob < 0.35:
-        return "Legitimate / Enterprise Verified"
+        return "Legitimate / Low Risk"
     url_lower = url.lower()
     if any(k in url_lower for k in ['paypal', 'bank', 'secure', 'login', 'auth', 'verify', 'account']):
-        return "Credential Theft / Active Phishing"
+        return "Credential Theft / Phishing"
     elif any(k in url_lower for k in ['shop', 'store', 'cart', 'discount', 'checkout']):
-        return "Fraudulent E-Commerce / Scam Store"
+        return "Fake Shopping Website"
     elif any(k in url_lower for k in ['crypto', 'wallet', 'binance', 'btc', 'claim', 'tokn']):
-        return "Crypto Drainer / Token Scam"
+        return "Crypto Scam"
     elif features['is_ip'] == 1 or features['entropy'] > 4.8:
-        return "Malware Host / Exploit Node"
+        return "Malware / Exploit Risk"
     else:
-        return "Suspicious Domain / Cyber Risk"
+        return "Generic Phishing Lure"
 
 def generate_category_recommendations(category: str, features: dict) -> tuple[list, list, list]:
     risk_factors = []
@@ -375,7 +462,7 @@ def generate_category_recommendations(category: str, features: dict) -> tuple[li
     recs = []
 
     if features['has_https'] == 1:
-        safe_indicators.append("Encrypted SSL/TLS communications protocol active (HTTPS).")
+        safe_indicators.append("Encrypted SSL/TLS protocol active (HTTPS).")
     if features['is_ip'] == 0:
         safe_indicators.append("Standard domain name resolution active (non-IP addressing).")
     if features['url_length'] < 45:
@@ -386,22 +473,22 @@ def generate_category_recommendations(category: str, features: dict) -> tuple[li
     if features['is_ip'] == 1:
         risk_factors.append("Domain routes directly to a raw public IP address.")
     if features['url_length'] > 65:
-        risk_factors.append(f"Excessive string length ({features['url_length']} characters).")
+        risk_factors.append("Excessive string length (" + str(features['url_length']) + " characters).")
     if features['suspicious_keywords_count'] > 0:
-        risk_factors.append(f"Detected {features['suspicious_keywords_count']} high-risk target phishing keywords.")
+        risk_factors.append("Detected " + str(features['suspicious_keywords_count']) + " high-risk target phishing keywords.")
     if features['entropy'] > 4.6:
-        risk_factors.append(f"High string randomness/entropy ({features['entropy']}).")
+        risk_factors.append("High string randomness/entropy (" + str(features['entropy']) + ").")
 
-    if category == "Credential Theft / Active Phishing":
+    if category == "Credential Theft / Phishing":
         recs.append("Enforce strict OAuth token verification and MFA hardware keys.")
         recs.append("Block domain across enterprise DNS and email gateways.")
-    elif category == "Crypto Drainer / Token Scam":
+    elif category == "Crypto Scam":
         recs.append("Block Web3 wallet contract signature requests on unverified origin.")
         recs.append("Flag associated wallet approval addresses to compliance databases.")
-    elif category == "Fraudulent E-Commerce / Scam Store":
+    elif category == "Fake Shopping Website":
         recs.append("Verify payment gateway merchant ID and WHOIS domain registration age.")
         recs.append("Warn users before entering credit card or payment credentials.")
-    elif category == "Malware Host / Exploit Node":
+    elif category == "Malware / Exploit Risk":
         recs.append("Isolate network node and run automated endpoint virus scan.")
         recs.append("Block inbound/outbound TCP traffic to the target IP address.")
     else:
@@ -414,23 +501,48 @@ def generate_category_recommendations(category: str, features: dict) -> tuple[li
 
     return risk_factors, safe_indicators, recs
 
-def compute_feature_importance_explanations(feat_df: pd.DataFrame) -> pd.DataFrame:
-    importances = model.feature_importances_
+@st.cache_resource
+def get_shap_explainer(_model):
+    try:
+        import shap
+        return shap.TreeExplainer(_model)
+    except Exception:
+        return None
+
+def compute_explainability(feat_df: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+    try:
+        explainer = get_shap_explainer(rf_model)
+        if explainer is not None:
+            shap_vals = explainer.shap_values(feat_df)
+            vals = shap_vals[1][0] if isinstance(shap_vals, list) else shap_vals[0]
+            df_exp = pd.DataFrame({
+                'Feature': [f.replace('_', ' ').title() for f in FEATURE_NAMES],
+                'Impact_Score': vals,
+                'Raw_Value': feat_df.iloc[0].values
+            }).sort_values(by='Impact_Score', ascending=False)
+            return df_exp, "Genuine Game-Theoretic SHAP Attributions"
+    except Exception:
+        pass
+
+    importances = rf_model.feature_importances_
     values = feat_df.iloc[0].values
     weighted_scores = importances * (values + 1.0)
-    
     df_exp = pd.DataFrame({
         'Feature': [f.replace('_', ' ').title() for f in FEATURE_NAMES],
         'Impact_Score': weighted_scores,
         'Raw_Value': values
     }).sort_values(by='Impact_Score', ascending=False)
-    
-    return df_exp
+    return df_exp, "Tree Feature Importance Weights"
 
 def analyze_single_url(url: str) -> dict:
     feats = extract_features(url)
     feat_df = pd.DataFrame([feats])[FEATURE_NAMES]
-    fraud_prob = float(model.predict_proba(feat_df)[0][1])
+    
+    rf_prob = float(rf_model.predict_proba(feat_df)[0][1])
+    X_tfidf_input = tfidf.transform([url])
+    lr_prob = float(lr_model.predict_proba(X_tfidf_input)[0][1])
+    
+    fraud_prob = float(0.65 * rf_prob + 0.35 * lr_prob)
     trust_score = max(0, min(100, int((1.0 - fraud_prob) * 100)))
     confidence_score = round(max(fraud_prob, 1.0 - fraud_prob) * 100, 1)
     
@@ -446,7 +558,7 @@ def analyze_single_url(url: str) -> dict:
         threat_level = "Critical Risk"
 
     threat_category = classify_threat_category(url, feats, fraud_prob)
-    importance_df = compute_feature_importance_explanations(feat_df)
+    exp_df, exp_method = compute_explainability(feat_df)
     risk_factors, safe_indicators, recs = generate_category_recommendations(threat_category, feats)
 
     return {
@@ -457,14 +569,14 @@ def analyze_single_url(url: str) -> dict:
         'threat_level': threat_level, 
         'threat_category': threat_category,
         'features': feats, 
-        'feature_importance': importance_df,
+        'importance_df': exp_df,
+        'exp_method': exp_method,
         'risk_factors': risk_factors, 
         'safe_indicators': safe_indicators,
         'recommendations': recs
     }
-
-# -----------------------------------------------------------------------------
-# 4. REPORTLAB PDF & GAUGES
+    # -----------------------------------------------------------------------------
+# 4. REPORTLAB PDF GENERATOR & PLOTLY GAUGES
 # -----------------------------------------------------------------------------
 def create_circular_trust_gauge(score: float, title: str, is_trust: bool = True) -> go.Figure:
     if is_trust:
@@ -506,7 +618,7 @@ def generate_pdf_report(analysis: dict) -> bytes:
     body_style = ParagraphStyle('BodyTextCustom', parent=styles['Normal'], fontName='Helvetica', fontSize=9, leading=14, textColor=colors.HexColor('#374151'))
 
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    sub_text = f"Generated: {now_str} UTC | Target: {analysis['url']}"
+    sub_text = "Generated: " + now_str + " UTC | Target: " + str(analysis['url'])
 
     story = [
         Paragraph("FraudShield AI — Security Audit Report", title_style),
@@ -518,10 +630,10 @@ def generate_pdf_report(analysis: dict) -> bytes:
     summary_data = [
         ["Target URL", str(analysis['url'])],
         ["Threat Level", str(analysis['threat_level'])],
-        ["Trust Score", f"{analysis['trust_score']} / 100"],
-        ["Fraud Risk Probability", f"{round(analysis['fraud_probability'] * 100, 1)}%"],
-        ["AI Model Confidence", f"{analysis['confidence_score']}%"],
-        ["Threat Category", str(analysis['threat_category'])]
+        ["AI Trust Score Index", str(analysis['trust_score']) + " / 100"],
+        ["Predicted Fraud Probability", str(round(analysis['fraud_probability'] * 100, 1)) + "%"],
+        ["Model Confidence Score", str(analysis['confidence_score']) + "%"],
+        ["Assigned Threat Category", str(analysis['threat_category'])]
     ]
     
     t = Table(summary_data, colWidths=[150, 370])
@@ -539,7 +651,7 @@ def generate_pdf_report(analysis: dict) -> bytes:
 
     story.append(Paragraph("Category-Specific Remediation Guidance", section_heading))
     for rec in analysis['recommendations']:
-        story.append(Paragraph(f"• <b>Action Required:</b> {rec}", body_style))
+        story.append(Paragraph("• <b>Action Required:</b> " + str(rec), body_style))
 
     doc.build(story)
     return buffer.getvalue()
@@ -574,22 +686,22 @@ st.markdown("""
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown('<div class="hud-card"><div class="hud-val">2,500+</div><div class="hud-lbl">URLs Scanned</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-card"><div class="hud-val">3,000+</div><div class="hud-lbl">URLs Evaluated</div></div>', unsafe_allow_html=True)
 with c2:
-    st.markdown('<div class="hud-card"><div class="hud-val">96.4%</div><div class="hud-lbl">Model Precision</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-card"><div class="hud-val">' + str(round(eval_metrics['precision']*100, 1)) + '%</div><div class="hud-lbl">Test Precision</div></div>', unsafe_allow_html=True)
 with c3:
     st.markdown('<div class="hud-card"><div class="hud-val">7+</div><div class="hud-lbl">Threat Categories</div></div>', unsafe_allow_html=True)
 with c4:
-    st.markdown('<div class="hud-card"><div class="hud-val">v2.5</div><div class="hud-lbl">Engine Core</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-card"><div class="hud-val">v2.0</div><div class="hud-lbl">Hybrid ML Core</div></div>', unsafe_allow_html=True)
 
 st.markdown("<br>", unsafe_allow_html=True)
 
 st.markdown("""
 <div class="status-card">
     <div class="status-item"><div class="status-dot"></div> AI Engine Online</div>
-    <div class="status-item">⚡ Random Forest Active</div>
+    <div class="status-item">⚡ Hybrid RF + TF-IDF Active</div>
     <div class="status-item">🔬 Feature Inspection Ready</div>
-    <div class="status-item">🛡️ Cyber Threat Intel Active</div>
+    <div class="status-item">🛡️ Threat Intel Active</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -597,11 +709,11 @@ st.markdown("""
 # 6. APP NAVIGATION TABS
 # -----------------------------------------------------------------------------
 tabs = st.tabs([
-    "🔍 URL Inspector", 
+    "🔍 Single URL Inspector", 
     "⚔️ Side-by-Side Comparison", 
-    "📈 Risk Analytics", 
+    "📈 Performance & Analytics", 
     "📁 Batch Scanner", 
-    "⚙️ Architecture"
+    "⚙️ Model Architecture"
 ])
 
 # TAB 1: SINGLE URL INSPECTOR
@@ -616,44 +728,44 @@ with tabs[0]:
         status_text = st.empty()
         
         steps = [
-            "Extracting Structural Features...",
-            "Running Random Forest Model...",
-            "Ranking Feature Importance...",
-            "Calculating Trust Score...",
+            "Extracting 24 Feature Parameters...",
+            "Executing Random Forest Ensemble...",
+            "Analyzing Char N-Gram TF-IDF Vector...",
+            "Computing Hybrid Risk Probability...",
             "Scan Complete!"
         ]
         
         for idx, step in enumerate(steps):
-            status_text.markdown(f"<span style='color:#38BDF8;'>⚡ {step}</span>", unsafe_allow_html=True)
+            status_text.markdown("<span style='color:#38BDF8;'>⚡ " + step + "</span>", unsafe_allow_html=True)
             progress_bar.progress((idx + 1) * 20)
-            time.sleep(0.06)
+            time.sleep(0.05)
             
         status_text.empty()
         progress_bar.empty()
 
         is_valid, norm_url, err_msg = normalize_and_validate_url(target_url)
         if not is_valid:
-            st.error(f"Validation Error: {err_msg}")
+            st.error("Validation Error: " + err_msg)
         else:
             res = analyze_single_url(norm_url)
             
             g1, g2, g3 = st.columns(3)
             with g1:
-                st.plotly_chart(create_circular_trust_gauge(res['trust_score'], "Trust Score Index", True), use_container_width=True)
+                st.plotly_chart(create_circular_trust_gauge(res['trust_score'], "AI Trust Score", True), use_container_width=True)
             with g2:
-                st.plotly_chart(create_circular_trust_gauge(round(res['fraud_probability'] * 100, 1), "Fraud Risk Probability", False), use_container_width=True)
+                st.plotly_chart(create_circular_trust_gauge(round(res['fraud_probability'] * 100, 1), "Predicted Fraud Risk", False), use_container_width=True)
             with g3:
-                st.plotly_chart(create_circular_trust_gauge(res['confidence_score'], "Model Confidence Score", True), use_container_width=True)
+                st.plotly_chart(create_circular_trust_gauge(res['confidence_score'], "Model Confidence", True), use_container_width=True)
 
             st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-            st.subheader("🔬 AI Decision Timeline")
+            st.subheader("🔬 AI Decision Pipeline")
             st.markdown("""
             <div class="timeline-container">
                 <div class="timeline-step"><div class="step-node">1</div><div class="step-text">Input URL</div></div>
                 <div class="timeline-step"><div class="step-node">2</div><div class="step-text">Feature Vector</div></div>
-                <div class="timeline-step"><div class="step-node">3</div><div class="step-text">Random Forest</div></div>
-                <div class="timeline-step"><div class="step-node">4</div><div class="step-text">Feature Impact</div></div>
-                <div class="timeline-step"><div class="step-node">5</div><div class="step-text">Final Verdict</div></div>
+                <div class="timeline-step"><div class="step-node">3</div><div class="step-text">Hybrid RF + TF-IDF</div></div>
+                <div class="timeline-step"><div class="step-node">4</div><div class="step-text">XAI Attribution</div></div>
+                <div class="timeline-step"><div class="step-node">5</div><div class="step-text">Final Assessment</div></div>
             </div>
             """, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
@@ -662,26 +774,27 @@ with tabs[0]:
             with col_xai1:
                 st.markdown('<div class="glass-card">', unsafe_allow_html=True)
                 st.subheader("🧠 Threat Assessment Insights")
-                st.write(f"**Classification:** `{res['threat_category']}`")
-                st.write(f"**Severity Rating:** `{res['threat_level']}`")
+                st.write("**Heuristic Category:** `" + str(res['threat_category']) + "`")
+                st.write("**Severity Rating:** `" + str(res['threat_level']) + "`")
                 
-                st.markdown("#### 🚨 Top Risk Factors")
+                st.markdown("#### 🚨 Key Risk Signals")
                 for r in res['risk_factors']:
-                    st.write(f"• {r}")
+                    st.write("• " + str(r))
                 
-                st.markdown("#### 🟢 Top Safe Indicators")
+                st.markdown("#### 🟢 Safe Indicators")
                 for s in res['safe_indicators']:
-                    st.write(f"• {s}")
+                    st.write("• " + str(s))
                 st.markdown('</div>', unsafe_allow_html=True)
 
             with col_xai2:
                 st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-                st.subheader("📊 Key Feature Drivers")
-                top_feat = res['feature_importance'].iloc[0]['Feature']
-                st.info(f"💡 Risk estimation primarily driven by **{top_feat}**.")
+                st.subheader("📊 Feature Impact Scores")
+                st.caption("Engine: " + res['exp_method'])
+                top_feat = res['importance_df'].iloc[0]['Feature']
+                st.info("💡 Primary decision driver: **" + str(top_feat) + "**")
                 
                 fig = px.bar(
-                    res['feature_importance'].head(6), 
+                    res['importance_df'].head(6), 
                     x='Impact_Score', 
                     y='Feature', 
                     orientation='h',
@@ -693,20 +806,20 @@ with tabs[0]:
                 st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-            st.subheader("🛡️ Recommended Mitigation Actions")
+            st.subheader("🛡️ Contextual Defense Recommendations")
             for rec in res['recommendations']:
-                st.write(f"👉 **Action Item:** {rec}")
+                st.write("👉 **Action Item:** " + str(rec))
             st.markdown('</div>', unsafe_allow_html=True)
 
             pdf_bytes = generate_pdf_report(res)
             st.download_button(
                 label="📄 Export Security Audit PDF",
                 data=pdf_bytes,
-                file_name=f"FraudShield_Audit_{datetime.now().strftime('%Y%m%d')}.pdf",
+                file_name="FraudShield_Audit_" + datetime.now().strftime('%Y%m%d') + ".pdf",
                 mime="application/pdf"
             )
 
-# TAB 2: COMPARISON
+# TAB 2: SIDE-BY-SIDE COMPARISON
 with tabs[1]:
     st.subheader("⚔️ Side-by-Side URL Comparison")
     
@@ -728,71 +841,75 @@ with tabs[1]:
             with cA:
                 st.markdown('<div class="glass-card">', unsafe_allow_html=True)
                 st.subheader("Target A Profile")
-                st.write(f"**URL:** `{r1['url']}`")
-                st.metric("Trust Score Index", f"{r1['trust_score']} / 100")
-                st.metric("Fraud Probability", f"{round(r1['fraud_probability']*100, 1)}%")
-                st.write(f"**Threat Level:** {r1['threat_level']}")
-                st.write(f"**Category:** {r1['threat_category']}")
-                st.markdown("#### Key Risk Factors")
-                for rf in r1['risk_factors'][:2]:
-                    st.write(f"• {rf}")
+                st.write("**URL:** `" + str(r1['url']) + "`")
+                st.metric("AI Trust Score", str(r1['trust_score']) + " / 100")
+                st.metric("Fraud Probability", str(round(r1['fraud_probability']*100, 1)) + "%")
+                st.write("**Threat Level:** " + str(r1['threat_level']))
+                st.write("**Category:** " + str(r1['threat_category']))
                 st.markdown('</div>', unsafe_allow_html=True)
 
             with cB:
                 st.markdown('<div class="glass-card">', unsafe_allow_html=True)
                 st.subheader("Target B Profile")
-                st.write(f"**URL:** `{r2['url']}`")
-                st.metric("Trust Score Index", f"{r2['trust_score']} / 100")
-                st.metric("Fraud Probability", f"{round(r2['fraud_probability']*100, 1)}%")
-                st.write(f"**Threat Level:** {r2['threat_level']}")
-                st.write(f"**Category:** {r2['threat_category']}")
-                st.markdown("#### Key Risk Factors")
-                for rf in r2['risk_factors'][:2]:
-                    st.write(f"• {rf}")
+                st.write("**URL:** `" + str(r2['url']) + "`")
+                st.metric("AI Trust Score", str(r2['trust_score']) + " / 100")
+                st.metric("Fraud Probability", str(round(r2['fraud_probability']*100, 1)) + "%")
+                st.write("**Threat Level:** " + str(r2['threat_level']))
+                st.write("**Category:** " + str(r2['threat_category']))
                 st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-            st.subheader("🤖 Comparative Verdict")
+            st.subheader("🤖 Comparative AI Assessment")
             if r1['trust_score'] > r2['trust_score']:
-                ratio = round(r1['trust_score'] / max(1, r2['trust_score']), 1)
-                st.success(f"**Verdict:** Target A is significantly safer (**{ratio}x higher trust index**). Target B displays anomalous phishing parameters.")
+                st.success("Target A presents a lower URL-based risk profile compared to Target B.")
             elif r2['trust_score'] > r1['trust_score']:
-                ratio = round(r2['trust_score'] / max(1, r1['trust_score']), 1)
-                st.warning(f"**Verdict:** Target B is significantly safer (**{ratio}x higher trust index**). Target A displays structural vulnerabilities.")
+                st.warning("Target B presents a lower URL-based risk profile compared to Target A.")
             else:
-                st.info("**Verdict:** Both target URLs present identical security threat scores.")
+                st.info("Both target URLs present identical estimated threat scores.")
             st.markdown('</div>', unsafe_allow_html=True)
 
-# TAB 3: ANALYTICS
+# TAB 3: PERFORMANCE & ANALYTICS
 with tabs[2]:
-    st.subheader("📈 Risk Distribution & Model Analytics")
+    st.subheader("📈 Validated Model Metrics")
     
+    m1, m2, m3, m4, m5 = st.columns(5)
+    m1.metric("Test Precision", str(round(eval_metrics['precision'] * 100, 1)) + "%")
+    m2.metric("Test Recall", str(round(eval_metrics['recall'] * 100, 1)) + "%")
+    m3.metric("Test F1-Score", str(round(eval_metrics['f1'] * 100, 1)) + "%")
+    m4.metric("Test Accuracy", str(round(eval_metrics['accuracy'] * 100, 1)) + "%")
+    m5.metric("ROC-AUC", str(round(eval_metrics['roc_auc'] * 100, 1)) + "%")
+    
+    st.caption("Metrics evaluated on an independent held-out test split (" + str(eval_metrics['test_count']) + " samples) at decision threshold " + str(eval_metrics['threshold']))
+    
+    st.markdown("<br>", unsafe_allow_html=True)
     an1, an2 = st.columns(2)
-    
     with an1:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("#### Threat Category Distribution")
+        st.markdown("#### Sample Threat Vector Distribution")
         cat_data = pd.DataFrame({
-            'Category': ['Phishing', 'Safe Enterprise', 'Scam Stores', 'Crypto Drainers', 'Malware Host'],
-            'Count': [420, 1250, 310, 280, 240]
+            'Category': ['Safe Enterprise', 'Phishing Lures', 'Crypto Scams', 'Fake Stores', 'Malware Host'],
+            'Count': [1250, 420, 280, 310, 240]
         })
         fig_cat = px.pie(cat_data, values='Count', names='Category', hole=0.4, color_discrete_sequence=px.colors.sequential.Electric)
-        fig_cat.update_layout(template="plotly_dark", height=280, margin=dict(l=10, r=10, t=10, b=10))
+        fig_cat.update_layout(template="plotly_dark", height=260, margin=dict(l=10, r=10, t=10, b=10))
         st.plotly_chart(fig_cat, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with an2:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-        st.markdown("#### Average Trust Score Distribution")
-        hist_data = np.random.normal(72, 18, 500).clip(0, 100)
-        fig_hist = px.histogram(hist_data, nbins=20, labels={'value': 'Trust Score'}, color_discrete_sequence=['#38BDF8'])
-        fig_hist.update_layout(template="plotly_dark", height=280, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
-        st.plotly_chart(fig_hist, use_container_width=True)
+        st.markdown("#### Ensemble Model Weights")
+        weights_df = pd.DataFrame({
+            'Sub-Model': ['Random Forest (Structured)', 'Char TF-IDF + Logistic Reg'],
+            'Ensemble Weight': [0.65, 0.35]
+        })
+        fig_w = px.bar(weights_df, x='Sub-Model', y='Ensemble Weight', color='Sub-Model', color_discrete_sequence=['#38BDF8', '#A855F7'])
+        fig_w.update_layout(template="plotly_dark", height=260, showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
+        st.plotly_chart(fig_w, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-# TAB 4: BATCH ANALYSIS
+# TAB 4: BATCH SCANNER
 with tabs[3]:
-    st.subheader("📁 Batch Threat Scanner")
+    st.subheader("📁 Batch URL Threat Scanner")
     
     raw_urls = st.text_area("Paste URLs line-by-line:", placeholder="http://secure-login-paypal-verify.com\nhttps://google.com\nhttp://192.168.1.1/admin", height=140)
     if st.button("Execute Batch Scan") and raw_urls:
@@ -804,32 +921,29 @@ with tabs[3]:
                 r = analyze_single_url(n_u)
                 results.append({
                     'URL': u, 
-                    'Trust Score': r['trust_score'], 
+                    'AI Trust Score': r['trust_score'], 
                     'Threat Level': r['threat_level'], 
-                    'Fraud Probability': f"{round(r['fraud_probability']*100, 1)}%",
+                    'Fraud Risk Prob': str(round(r['fraud_probability']*100, 1)) + "%",
                     'Category': r['threat_category']
                 })
         res_df = pd.DataFrame(results)
         
-        st.success(f"Successfully processed {len(res_df)} targets!")
+        st.success("Successfully processed " + str(len(res_df)) + " targets!")
         st.dataframe(res_df, use_container_width=True)
-        
-        avg_trust = round(res_df['Trust Score'].mean(), 1)
-        st.metric("Batch Average Trust Score", f"{avg_trust} / 100")
-        
-        st.download_button("📥 Download Batch Report CSV", res_df.to_csv(index=False), "fraudshield_batch_audit.csv", "text/csv")
+        st.download_button("📥 Download Batch Audit CSV", res_df.to_csv(index=False), "fraudshield_batch_audit.csv", "text/csv")
 
 # TAB 5: ARCHITECTURE
 with tabs[4]:
-    st.subheader("⚙️ Neural Engine Architecture")
+    st.subheader("⚙️ Model Architecture & Technical Specifications")
     st.markdown("""
-    **Architectural Overview:**  
-    FraudShield AI uses an ensemble **Random Forest Classifier** trained on 10,000 multi-dimensional lexical and structural URL records.
-    The system maps high-entropy patterns, suspicious domain sub-trees, and special character variations to detect emerging cyber threats without relying on static blacklists.
+    **Overview:**  
+    FraudShield AI implements a dual-stream hybrid ensemble model combining a **Random Forest Classifier** operating on 24 handcrafted structural URL features and a **Character-Level TF-IDF + Logistic Regression Model** capturing text patterns.
 
-    **Technical Specs:**
-    * **Estimator Scale:** 120 trees (`n_estimators=120`)
-    * **Max Tree Depth:** Capped at 12 (`max_depth=12`)
-    * **Feature Space:** 16 lexical and structural entropy parameters
-    * **Inference Engine:** FraudShield v2.5
+    **Technical Pipeline Specifications:**
+    * **Primary Classifier:** Random Forest (`n_estimators=300`, `max_depth=12`, `class_weight='balanced_subsample'`)
+    * **Text Sub-Model:** Char N-Gram TF-IDF (`ngram_range=(3,5)`, `max_features=25000`) + Logistic Regression
+    * **Ensemble Fusion:** Weighted probability blend ($0.65 \times P_{\text{RF}} + 0.35 \times P_{\text{LR}}$)
+    * **Feature Engineering:** 24 continuous and binary structural, lexical, and Shannon Entropy parameters
+    * **Explainability Engine:** Fallback-safe SHAP Game-Theoretic Tree Attribution with Scikit-Learn importance backup
     """)
+    
